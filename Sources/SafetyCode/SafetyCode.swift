@@ -4,27 +4,34 @@ import UIKit
 
 
 public class SafetyCode: NSObject, CLLocationManagerDelegate {
-    let updateInterval = 1.0
-    let averageCount = 8
-    var asked = false
 
-    let speedLimit = 20.0
-    var warned       = false
-    var lastCheck   = 0.0
-    var lastCoordinate = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0)
-    var currentCoordinate = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0)
-    var options: [String: String]
+    let updateInterval = 5.0 // how often to run speed check
+    let averageCount = 8 // number of average speed values to use in calculation
+    var asked = false // has showed alert
 
-    var currentSpeed = 0.0
-    var averageSpeed = 0.0
+    let speedLimit = 20.0 // speed limit
+    var warned = false // time for last speed check
+    var lastCheck   = 0.0 // time for last speed check
+    var lastCoordinate = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0) // coordinate for last speed check
+    var currentCoordinate = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0) // current coordinate
 
-    var speeds: [Double] = []
+    var alertOptions: [String: String] = [
+        "title": "Oops! You're not driving are you?",
+        "message": "This app is speed lockded for your own safety.",
+        "actionTitle": "I'm not the driver"
+    ]  // options for alert
+
+
+    var currentSpeed = 0.0 // current calculated speed
+    var averageSpeed = 0.0 // average speed
+
+    var speeds: [Double] = [] // average speeds
     let locationManager = CLLocationManager()
-    let vc: UIViewController
 
-    public init(vc: UIViewController, options: [String: String]) {
-        self.vc = vc
-        self.options = options
+    public init(options:[String: String] = [:]) {
+        if (!options.isEmpty) {
+            alertOptions = alertOptions.merging(options) { (_, new) in new }
+        }
         super.init()
         self.locationManager.requestWhenInUseAuthorization()
         if CLLocationManager.locationServicesEnabled() {
@@ -35,12 +42,12 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
                 print("restricted")
             case .denied:
                 print("denied")
-                let accessAlert = UIAlertController(title: "Location Services Disabled", message: "You need to enable location services in settings.", preferredStyle: UIAlertControllerStyle.alert)
-
-                accessAlert.addAction(UIAlertAction(title: "Okay!", style: .default, handler: { (action: UIAlertAction!) in UIApplication.shared.open(URL(string:UIApplicationOpenSettingsURLString)!)
-                }))
-
-                self.vc.present(accessAlert, animated: true, completion: nil)
+//                let accessAlert = UIAlertController(title: "Location Services Disabled", message: "You need to enable location services in settings.", preferredStyle: UIAlertControllerStyle.alert)
+//
+//                accessAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (action: UIAlertAction!) in UIApplication.shared.open(URL(string:UIApplicationOpenSettingsURLString)!)
+//                }))
+//
+//                UIApplication.shared.keyWindow?.rootViewController?.present(accessAlert, animated: true, completion: nil)
 
             //check if services are allowed for this app
             case .authorizedAlways, .authorizedWhenInUse:
@@ -50,6 +57,7 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
                 print("asking for access...")
                 locationManager.requestWhenInUseAuthorization()
             }
+            //location services are disabled on the device entirely!
         } else {
             print("Location services are not enabled")
 
@@ -60,20 +68,24 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
             locationManager.startUpdatingLocation()
         }
 
-        Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(self.handlePosition), userInfo: nil, repeats: true)
+        Timer.scheduledTimer(timeInterval: updateInterval, target: self, selector: #selector(self.handlePosition), userInfo: nil, repeats: true)
+
     }
 
 
     func showAlert() {
-        if (self.asked) {
+
+        if (self.warned) {
             return
         }
-        self.asked = true
-        let alert = UIAlertController(title: "Oops! You're not driving are you?", message: "This app is speed lockded for your own safety.", preferredStyle: UIAlertControllerStyle.alert)
-        alert.addAction(UIAlertAction(title: "I'm not the driver", style: .default, handler: { action in
+        self.warned = true
+        let alert = UIAlertController(title: alertOptions["title"], message: alertOptions["message"], preferredStyle: UIAlertControllerStyle.alert)
+        alert.addAction(UIAlertAction(title: alertOptions["actionTitle"], style: .default, handler: { action in
+
+
             switch action.style{
             case .default:
-                self.warned = true
+                print("default")
 
             case .cancel:
                 print("cancel")
@@ -82,7 +94,8 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
                 print("destructive")
 
             }}))
-        self.vc.present(alert, animated: true, completion: nil)
+//        self.vc.present(alert, animated: true, completion: nil)
+        UIApplication.shared.keyWindow?.rootViewController?.present(alert, animated: true, completion: nil)
     }
 
 
@@ -92,8 +105,7 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
         var hours = 0.0
 
         let currentTime =  NSDate().timeIntervalSince1970 * 1000
-        print("CURRENT - lat " + String(coordinate.latitude) + " / lng " + String(coordinate.longitude))
-//        print("LAST -  lat " + String(lastCoordinate.latitude) + " / lng " + String(lastCoordinate.longitude))
+//        print("CURRENT - lat " + String(coordinate.latitude) + " / lng " + String(coordinate.longitude))
 
         if (lastCoordinate.latitude == coordinate.latitude && lastCoordinate.longitude == coordinate.longitude) {
             return
@@ -113,17 +125,15 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
         } else {
             self.currentSpeed = 0
         }
-        print("distance: " + String(distance) + " hours: " + String(hours) + " speed: " + String(self.currentSpeed))
+        // print("distance: " + String(distance) + " hours: " + String(hours) + " speed: " + String(self.currentSpeed))
 
-
-        // if(self.speeds.count > 0 && currentSpeedKmH > (self.speeds[self.speeds.count - 1] + 20)) {
-        //   kpm = this.speeds[this.speeds.length-1] + 20
-        // }
+        // even out for gps glitches
+        if(self.speeds.count > 0 && self.currentSpeed > (self.speeds[self.speeds.count - 1] + 20)) {
+           self.currentSpeed = self.speeds[self.speeds.count - 1] + 20
+        }
         self.speeds.append(self.currentSpeed)
 
-
-
-//        print("speeds.count " + String(self.speeds.count))
+        // do we have enough values to estimate speed
         if(self.speeds.count >= self.averageCount) {
             let tmpSpeeds: ArraySlice<Double>
             tmpSpeeds = self.speeds.suffix(self.averageCount)
@@ -138,11 +148,12 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
 
             if (self.averageSpeed >= self.speedLimit && self.currentSpeed >= self.speedLimit && !self.warned) {
                 self.showAlert()
+                //manager.stopUpdatingLocation()
             }
 
-            if(self.averageSpeed <= 1.0) {
-                self.warned = false
-            }
+//            if(self.averageSpeed <= 1.0) {
+//                self.warned = false
+//            }
 
         }
         self.lastCheck = currentTime
@@ -151,13 +162,9 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
     }
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-//        print("locationManager")
-        let userLocation:CLLocation = locations[0] as CLLocation
-//        manager.stopUpdatingLocation()
 
+        let userLocation:CLLocation = locations[0] as CLLocation
         currentCoordinate = CLLocationCoordinate2D(latitude: userLocation.coordinate.latitude,longitude: userLocation.coordinate.longitude)
-//        currentCoordinate = coordinate
-//        self.handlePosition(coordinate: coordinate)
     }
 
 
@@ -181,6 +188,7 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
         dist = acos(dist)
         dist = dist * 180 / Double.pi
         dist = dist * 60 * 1.1515
+
         // Calculates the distance into kilometers.
         dist = dist * 1.609344
         return dist
