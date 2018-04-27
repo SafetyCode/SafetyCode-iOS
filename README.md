@@ -1,6 +1,9 @@
 # SafetyCode
 
-Safety Code is free to use. The package tracks the visitors’ GPS position and determines if they are driving. If going faster than 20 km/h, they will need to confirm that they are not the driver to continue useing the app.
+Help make life on the road safer by using Safety Code – a free package that will block your app for all users while driving a car.
+
+Safety Code is free and can be used in any app. The code tracks the visitors’ GPS position and determines if they are driving. If going faster than 20 km/h, they will need to confirm that they are not the driver to continue using the app.
+
 
 ## Usage
 
