@@ -68,16 +68,18 @@ public class SafetyCode: NSObject, CLLocationManagerDelegate {
             locationManager.startUpdatingLocation()
         }
 
+        // Start timer
         Timer.scheduledTimer(timeInterval: updateInterval, target: self, selector: #selector(self.handlePosition), userInfo: nil, repeats: true)
 
     }
 
 
     func showAlert() {
-
+        // check if laready warned
         if (self.warned) {
             return
         }
+        
         self.warned = true
         let alert = UIAlertController(title: alertOptions["title"], message: alertOptions["message"], preferredStyle: UIAlertControllerStyle.alert)
         alert.addAction(UIAlertAction(title: alertOptions["actionTitle"], style: .default, handler: { action in
